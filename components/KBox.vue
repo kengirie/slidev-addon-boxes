@@ -74,7 +74,11 @@ const baseDragPos = computed(() => {
 // v-drag は自分を書いたコンポーネント（＝この KBox）の provide から frontmatter を読む。
 // 実際の dragPos に無ければ既定の座標を入れた frontmatter を provide する（ファイルには書かれない）。
 const FRONTMATTER_KEY = '$$slidev-fontmatter'
-const parentFrontmatter = inject<Record<string, any>>(FRONTMATTER_KEY, {})
+// 入れ子の <KBox> は、親の KBox が作った「既定の座標入り」の frontmatter ではなく、スライド本来の frontmatter を使う
+// （v-drag は渡された dragPos を丸ごと保存するので、親の既定の座標まで書かれてしまう）
+const REAL_FRONTMATTER_KEY = 'kbox-real-frontmatter'
+const parentFrontmatter = inject<Record<string, any> | null>(REAL_FRONTMATTER_KEY, null) ?? inject<Record<string, any>>(FRONTMATTER_KEY, {})
+provide(REAL_FRONTMATTER_KEY, parentFrontmatter)
 const frontmatterForDrag = reactive<Record<string, any>>({})
 watchEffect(() => {
   Object.assign(frontmatterForDrag, parentFrontmatter, {
@@ -95,8 +99,24 @@ const editorInstalled = useEditorInstalled()
 // エディタが入っているときは閉じていても v-drag を付けない（閉じた状態は「見るだけ」）
 const useVDrag = computed(() => !!props.name && !editorOpen.value && !editorInstalled.value)
 
+/**
+ * エディタがその場で書いた位置。エディタはスライドを描き直さずに dragPos を保存するので
+ * （Slidev の v-drag と同じ）、この枠の frontmatter はしばらく古いまま残る。
+ * 古い値で描き直すと枠が元の位置に戻ってしまうため、エディタから知らされた位置を優先する。
+ */
+const local = shallowRef<{ x: number, y: number, w: number, h: number, rotate: number } | null>(null)
+function onPlace(event: Event) {
+  const g = (event as CustomEvent).detail
+  if (g && [g.x, g.y, g.w, g.h].every(Number.isFinite))
+    local.value = { x: g.x, y: g.y, w: g.w, h: g.h, rotate: Number(g.rotate) || 0 }
+}
+// frontmatter が本当に変わったら（描き直し・手で編集）、そちらに従う
+watch(() => props.name && parentFrontmatter.dragPos?.[props.name], () => local.value = null)
+
 /** 保存済みの dragPos（無ければ既定の座標）。v-drag を使わないときはこれで描く */
 const placed = computed(() => {
+  if (local.value)
+    return local.value
   const saved = props.name ? parentFrontmatter.dragPos?.[props.name] : undefined
   const n = typeof saved === 'string' ? saved.split(',').map(Number) : []
   if (n.length >= 4 && n.slice(0, 4).every(Number.isFinite))
@@ -239,6 +259,7 @@ onBeforeUnmount(() => {
       :data-studio-box-default="editorOpen && name ? baseDragPos : undefined"
       :data-studio-box-prompt="editorOpen && prompt ? prompt : undefined"
       :data-studio-box-main="editorOpen && main ? '1' : undefined"
+      @kbox-place="onPlace"
       @dblclick.stop
     >
       <img v-if="src" :src="resolveAssetUrl(src)" :style="{ objectFit: fit }">
