@@ -1,0 +1,21 @@
+{
+  "name": "slidev-addon-boxes",
+  "version": "0.1.0",
+  "description": "Slidev で「絶対座標の枠 ＋ 中身は普通の Markdown」を書くためのアドオン。名前付きの枠と既定座標をレイアウトで決め、スライドでは動かしたときだけ座標を書く",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kengirie/slidev-addon-boxes"
+  },
+  "keywords": [
+    "slidev-addon",
+    "slidev"
+  ],
+  "engines": {
+    "slidev": ">=52.0.0"
+  },
+  "peerDependencies": {
+    "@slidev/cli": ">=52.0.0",
+    "vue": "^3.5.0"
+  }
+}

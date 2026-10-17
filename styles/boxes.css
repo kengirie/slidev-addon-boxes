@@ -1,0 +1,158 @@
+/*
+ * slidev-addon-boxes：枠（KBox）の構造。見た目の値はテーマが CSS 変数で上書きする。
+ *
+ * 行間のモデル：行送り = (--k-lines + --k-leading) × 1em。
+ * 1 行目の上と最終行の下には行間を付けない（Keynote などのスライドソフトと同じ）。
+ */
+:where(:root) {
+  --k-font: inherit;
+  --k-leading: .2;
+  --k-text: inherit;
+  --k-bg: transparent;
+  --k-inset: 4px;
+  --k-bullet: "•";
+  --k-bullet-indent: 1em;
+  --k-bullet-size: 1em;
+  --k-bullet-top: 0px;
+  --k-debug-border: 1px solid #c8c8c8;
+}
+
+.slidev-layout.box-layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: var(--k-bg);
+  color: var(--k-text);
+  font-family: var(--k-font);
+}
+
+/* ---------- 外側：絶対座標の枠 ---------- */
+/* 枠の座標の基準（スライド左上）。入れ子の <KBox> では親の枠の原点を打ち消す位置に置かれる */
+.kbox-origin {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: visible;
+}
+.kbox {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: visible;
+}
+.kbox-debug {
+  outline: var(--k-debug-border);
+}
+.kbox-image {
+  overflow: hidden;
+  background: #e8e8e8;
+}
+.kbox-image img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  display: block;
+}
+
+/* ---------- 内側：Markdown が普通に流れる ---------- */
+.kbox-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: var(--k-inset);
+  box-sizing: border-box;
+}
+.kbox-flow {
+  min-width: 0;
+}
+/* Markdown 要素はボックスの文字設定をそのまま継承させる（Keynote はボックス単位で書式が決まる） */
+.kbox-flow :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote) {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+.kbox-flow strong { font-weight: 800; }
+
+/* ---------- 箇条書き（マスター bodyStyle: marL 48pt / indent -48pt / 記号 123% / 段落前 45pt） ---------- */
+.kbox-flow ul,
+.kbox-flow ol {
+  list-style: none;
+}
+.kbox-flow li {
+  position: relative;
+  padding-left: var(--k-bullet-indent);
+}
+.kbox-flow li + li,
+.kbox-flow li > :where(ul, ol) > li:first-child {
+  margin-top: calc(var(--k-para-before) * var(--k-fit, 1));
+}
+.kbox-flow p + p {
+  margin-top: calc(var(--k-para-before) * var(--k-fit, 1));
+}
+/* 段組み：Keynote と同じく 1 段目を埋めてから 2 段目へ流す */
+.kbox-flow.kbox-columns {
+  column-fill: auto;
+  height: calc(100% + var(--k-lh) - 1em);
+}
+.kbox-flow ul > li::before {
+  content: var(--k-bullet);
+  position: absolute;
+  left: 0;
+  font-size: var(--k-bullet-size);
+  line-height: 1;
+  top: var(--k-bullet-top);
+}
+.kbox-flow ol { counter-reset: k-ol; }
+.kbox-flow ol > li { counter-increment: k-ol; }
+.kbox-flow ol > li::before {
+  content: counter(k-ol) ".";
+  position: absolute;
+  left: 0;
+}
+
+/* ---------- 文字サイズ・行間（値は .k-role-* でテーマが決める） ---------- */
+/* 既定値は詳細度 0 にして、テーマの .k-role-* が読み込み順に関係なく勝つようにする */
+:where(.kbox) {
+  --k-lines: 1;
+  --k-para-before: 0px;
+  --k-size: 48px;
+}
+.kbox {
+  /* 縮小して合わせる（KBox が 0〜1 を設定） */
+  font-size: calc(var(--k-size) * var(--k-fit, 1));
+}
+.kbox-flow {
+  --k-lh: calc((var(--k-lines) + var(--k-leading)) * 1em);
+  line-height: var(--k-lh);
+  /* Keynote は 1 行目の上・最終行の下に行間を付けない（行間は行と行の間だけ）。
+     CSS は行間を上下に半分ずつ配るので、その分を打ち消す。
+     ヒラギノの ascent+descent = 1em。 */
+  margin-block: calc((1em - var(--k-lh)) / 2);
+}
+
+/* 写真・動画などを枠いっぱいに入れる役割 */
+.k-role-media     { --k-inset: 0px; }
+.k-role-media .kbox-flow, .k-role-media .kbox-flow > * { width: 100%; height: 100%; }
+.k-role-media :where(img, video, iframe) { width: 100%; height: 100%; object-fit: cover; max-width: none; }
+
+/* ---------- 校正用オーバーレイ ---------- */
+.box-layout-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ---------- 編集（npm run dev のときだけ） ----------
+ * name のある枠はダブルクリックで v-drag の選択状態になる（ドラッグで移動・ハンドルでリサイズ・矢印キーで 1px 移動） */
+.kbox-editable:hover {
+  outline: 1px dashed rgba(0, 120, 255, .5);
+  cursor: default;
+}
