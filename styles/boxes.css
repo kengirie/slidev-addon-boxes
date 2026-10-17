@@ -156,3 +156,9 @@
   outline: 1px dashed rgba(0, 120, 255, .5);
   cursor: default;
 }
+
+/* ---------- 空の枠の案内文（エディタを開いているときだけ描かれる） ----------
+ * Keynote と同じく、本物の文字と同じ書式で出す */
+.kbox-prompt {
+  pointer-events: auto;
+}

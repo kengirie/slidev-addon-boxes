@@ -1,13 +1,17 @@
 <script setup lang="ts">
 // 二層構造の「外側」：絶対座標の枠。中身（slot）は普通の Markdown フロー。
 //
-// 枠の移動・リサイズは Slidev 標準の v-drag に任せる（ダブルクリックで選択）。
-// v-drag は frontmatter の dragPos.<name> を読むので、そこに「既定の座標」を見せかけて渡す。
-// 動かした枠だけが dragPos.<name> としてファイルに書かれる。
+// 枠の移動・リサイズ：
+// - 画面上のエディタ（slidev-addon-keynote-editor）が開いているときは、エディタが動かす。
+//   KBox は data-studio-box などの印を付け、位置は dragPos.<name> か既定の座標から自分で描く。
+// - エディタが無い・閉じているときは、Slidev 標準の v-drag に任せる（ダブルクリックで選択）。
+//   v-drag は frontmatter の dragPos.<name> を読むので、そこに「既定の座標」を見せかけて渡す。
+// どちらの場合も、動かした枠だけが dragPos.<name> としてファイルに書かれる。
 import type { Directive } from 'vue'
 import { computed, getCurrentInstance, inject, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, shallowRef, watch, watchEffect } from 'vue'
 import { useSlideContext } from '@slidev/client'
 import { resolveAssetUrl } from '../layoutHelper'
+import { useEditorOpen } from '../composables/useEditorOpen'
 
 const props = withDefaults(defineProps<{
   x?: number | string
@@ -28,6 +32,8 @@ const props = withDefaults(defineProps<{
   fit?: 'cover' | 'contain'
   /** 名前を付けると v-drag で動かせる（座標は dragPos.<name> に保存） */
   name?: string
+  /** 空のときに編集画面だけで表示する案内文（Keynote のプレースホルダーの仮テキスト） */
+  prompt?: string
 }>(), {
   x: 0,
   y: 0,
@@ -81,6 +87,19 @@ provide(FRONTMATTER_KEY, frontmatterForDrag)
 /** v-drag が使う座標（保存済みの dragPos か、既定の座標） */
 const dragPos = computed(() => props.name ? frontmatterForDrag.dragPos[props.name] as string : undefined)
 
+// エディタが開いている間は v-drag を付けない（エディタが動かす）
+const editorOpen = useEditorOpen()
+const useVDrag = computed(() => !!props.name && !editorOpen.value)
+
+/** 保存済みの dragPos（無ければ既定の座標）。v-drag を使わないときはこれで描く */
+const placed = computed(() => {
+  const saved = props.name ? parentFrontmatter.dragPos?.[props.name] : undefined
+  const n = typeof saved === 'string' ? saved.split(',').map(Number) : []
+  if (n.length >= 4 && n.slice(0, 4).every(Number.isFinite))
+    return { x: n[0], y: n[1], w: n[2], h: n[3], rotate: Number.isFinite(n[4]) ? n[4] : 0 }
+  return base.value
+})
+
 // 名前があるときだけ v-drag を付ける（名前の無い v-drag は Markdown 上の位置を要求するため）
 const vDragGlobal = getCurrentInstance()!.appContext.directives.drag as any
 const vMaybeDrag: Directive<HTMLElement, string | undefined> = {
@@ -96,9 +115,9 @@ const dragState = shallowRef<any>()
 watch(root, el => dragState.value = (el as any)?.draggingState, { flush: 'post', immediate: true })
 const geo = computed(() => {
   const st = dragState.value
-  if (st && Number.isFinite(st.x0.value))
+  if (useVDrag.value && st && Number.isFinite(st.x0.value))
     return { x: st.x0.value - st.width.value / 2, y: st.y0.value - st.height.value / 2 }
-  return { x: base.value.x, y: base.value.y }
+  return { x: placed.value.x, y: placed.value.y }
 })
 
 // 本文中に <KBox> を書いた場合も「スライド座標」で効くよう、親の枠の原点を打ち消す入れ物を挟む
@@ -113,14 +132,14 @@ const fitScale = ref(1)
 
 const outer = computed(() => ({
   // v-drag が付いている枠は、位置とサイズを v-drag が設定する
-  ...(props.name
+  ...(useVDrag.value
     ? {}
     : {
-        left: px(base.value.x),
-        top: px(base.value.y),
-        width: px(base.value.w),
-        height: px(base.value.h),
-        transform: base.value.rotate ? `rotate(${base.value.rotate}deg)` : undefined,
+        left: px(placed.value.x),
+        top: px(placed.value.y),
+        width: px(placed.value.w),
+        height: px(placed.value.h),
+        transform: placed.value.rotate ? `rotate(${placed.value.rotate}deg)` : undefined,
       }),
   '--k-fit': fitScale.value,
 }))
@@ -205,19 +224,25 @@ onBeforeUnmount(() => {
   <div class="kbox-origin" :style="originReset">
     <!-- key：既定の座標や dragPos が Markdown 側で変わったら v-drag を作り直す（v-drag は作成時にしか読まない） -->
     <div
-      :key="dragPos"
+      :key="`${dragPos}|${useVDrag}`"
       ref="root"
-      v-maybe-drag="name"
+      v-maybe-drag="useVDrag ? name : undefined"
       class="kbox"
-      :class="[src ? 'kbox-image' : `k-role-${role}`, { 'kbox-debug': debug, 'kbox-editable': editable }]"
+      :class="[src ? 'kbox-image' : `k-role-${role}`, { 'kbox-debug': debug, 'kbox-editable': editable && useVDrag }]"
       :style="outer"
       :data-box="name"
+      :data-studio-box="editorOpen && name ? name : undefined"
+      :data-studio-box-default="editorOpen && name ? baseDragPos : undefined"
+      :data-studio-box-prompt="editorOpen && prompt ? prompt : undefined"
       @dblclick.stop
     >
       <img v-if="src" :src="resolveAssetUrl(src)" :style="{ objectFit: fit }">
       <div v-else ref="inner" class="kbox-inner" :style="{ justifyContent: justify[valign], textAlign: align }">
         <div ref="flow" class="kbox-flow" :class="{ 'kbox-columns': multiColumn }" :style="flowStyle">
-          <slot />
+          <slot>
+            <!-- 中身が無い枠（エディタを開いているときだけ描かれる）には案内文を出す -->
+            <p v-if="prompt" class="kbox-prompt">{{ prompt }}</p>
+          </slot>
         </div>
       </div>
     </div>

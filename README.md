@@ -76,7 +76,14 @@ dragPos:
 
 ### 枠を動かす
 
-`npm run dev` 中に枠をダブルクリックすると、Slidev 標準の `v-drag` で動かせる。動かした枠だけが `dragPos` に書かれる。
+- [slidev-addon-keynote-editor](https://github.com/kengirie/slidev-addon-keynote-editor) を併用すると、Keynote と同じ操作で枠を選んで動かし、文字を編集できる（エディタを開いている間、枠には `data-studio-box` などの印が付き、位置は枠が自分で描く）
+- エディタが無い・閉じているときは、`npm run dev` 中に枠をダブルクリックすると Slidev 標準の `v-drag` で動かせる
+
+どちらでも、動かした枠だけが `dragPos` に書かれる。
+
+### 空の枠の案内文
+
+`BoxDef.prompt` を決めておくと、中身の無い枠はエディタを開いている間だけ案内文付きで描かれる（Keynote の空のプレースホルダー）。書き出し・発表では描かれない。
 
 ## テーマが決める CSS 変数
 

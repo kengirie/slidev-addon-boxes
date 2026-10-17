@@ -7,6 +7,7 @@ import { useSlideContext } from '@slidev/client'
 import type { BoxDef, LayoutDef } from '../types'
 import KBox from './KBox.vue'
 import { resolveAssetUrl } from '../layoutHelper'
+import { useEditorOpen } from '../composables/useEditorOpen'
 
 const props = defineProps<{
   /** レイアウト名（クラス名 box-layout-<name> に使う） */
@@ -18,6 +19,7 @@ const slots = useSlots()
 const { $frontmatter, $slidev } = useSlideContext()
 
 const def = computed(() => props.def ?? { boxes: {} })
+const editorOpen = useEditorOpen()
 
 /** スロット名 → スロット関数。名前なし（default）は layout の main ボックスへ */
 function slotFor(key: string) {
@@ -50,18 +52,32 @@ const boxes = computed(() => {
         continue
       result.push({ ...box, src: images[key] })
     }
-    else if (slotFor(key)) {
+    else if (slotFor(key) || (editorOpen.value && box.prompt)) {
+      // 中身の無い枠は、エディタを開いている間だけ案内文付きで描く（Keynote の空のプレースホルダー）
       result.push(box)
     }
   }
   return result
 })
 
+/**
+ * エディタ向けの一覧：このレイアウトの名前付きの枠と、表示しているかどうか。
+ * 非表示（boxes.<name>.hide）の枠は描かれないので、DOM から辿れるようにここに書いておく。
+ */
+const boxList = computed(() => {
+  if (!editorOpen.value)
+    return undefined
+  const overrides: Record<string, any> = $frontmatter.boxes ?? {}
+  return JSON.stringify(Object.entries(def.value.boxes)
+    .filter(([, b]) => b.kind !== 'image')
+    .map(([name, b]) => ({ name, prompt: b.prompt ?? '', hidden: !!overrides[name]?.hide })))
+})
+
 const overlay = computed(() => $frontmatter.overlay ? resolveAssetUrl($frontmatter.overlay) : undefined)
 </script>
 
 <template>
-  <div class="slidev-layout box-layout" :class="`box-layout-${name}`">
+  <div class="slidev-layout box-layout" :class="`box-layout-${name}`" :data-studio-layout-boxes="boxList">
     <template v-for="b in boxes" :key="b.key">
       <KBox
         :name="b.key"
@@ -69,8 +85,11 @@ const overlay = computed(() => $frontmatter.overlay ? resolveAssetUrl($frontmatt
         :role="b.role" :valign="b.valign" :align="b.align"
         :columns="b.columns" :column-gap="b.columnGap" :autofit="b.autofit ?? true"
         :src="b.src"
+        :prompt="b.prompt"
       >
-        <component :is="slotFor(b.key)" v-if="!b.src" />
+        <template v-if="!b.src && slotFor(b.key)" #default>
+          <component :is="slotFor(b.key)" />
+        </template>
       </KBox>
     </template>
     <!-- 名前なしスロットを受けるボックスが無いレイアウトでも、<KBox> 直書きなどは描画する -->

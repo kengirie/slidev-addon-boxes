@@ -21,6 +21,8 @@ export interface BoxDef {
   columnGap?: number
   /** 「テキストを縮小して合わせる」。レイアウトの枠は既定で true */
   autofit?: boolean
+  /** 空のときに編集画面だけで表示する案内文（例：「スライドのタイトル」） */
+  prompt?: string
 }
 
 export interface LayoutDef {
