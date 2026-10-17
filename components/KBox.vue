@@ -34,6 +34,8 @@ const props = withDefaults(defineProps<{
   name?: string
   /** 空のときに編集画面だけで表示する案内文（Keynote のプレースホルダーの仮テキスト） */
   prompt?: string
+  /** レイアウトのメインの枠（区切りなしで書いた Markdown が入る枠）か */
+  main?: boolean
 }>(), {
   x: 0,
   y: 0,
@@ -236,6 +238,7 @@ onBeforeUnmount(() => {
       :data-studio-box="editorOpen && name ? name : undefined"
       :data-studio-box-default="editorOpen && name ? baseDragPos : undefined"
       :data-studio-box-prompt="editorOpen && prompt ? prompt : undefined"
+      :data-studio-box-main="editorOpen && main ? '1' : undefined"
       @dblclick.stop
     >
       <img v-if="src" :src="resolveAssetUrl(src)" :style="{ objectFit: fit }">

@@ -86,15 +86,20 @@ const overlay = computed(() => $frontmatter.overlay ? resolveAssetUrl($frontmatt
         :columns="b.columns" :column-gap="b.columnGap" :autofit="b.autofit ?? true"
         :src="b.src"
         :prompt="b.prompt"
+        :main="b.key === def.main"
       >
         <template v-if="!b.src && slotFor(b.key)" #default>
           <component :is="slotFor(b.key)" />
         </template>
       </KBox>
     </template>
-    <!-- 名前なしスロットを受けるボックスが無いレイアウトでも、<KBox> 直書きなどは描画する -->
-    <div v-if="!def.main || !def.boxes[def.main]" class="box-layout-free">
-      <slot />
+    <!--
+      枠に入らないもの（Keynote でいうスライド上の自由なオブジェクト）を置く層。スライド全体を覆い、座標はスライド座標。
+      ::free:: に書いたものと、メインの枠が無いレイアウトの区切りなしの Markdown がここに入る。
+    -->
+    <div class="box-layout-free">
+      <slot v-if="!def.main || !def.boxes[def.main]" />
+      <slot name="free" />
     </div>
     <img
       v-if="overlay"

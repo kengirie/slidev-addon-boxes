@@ -162,3 +162,13 @@
 .kbox-prompt {
   pointer-events: auto;
 }
+
+/* 枠に入らないものを置く層（::free::）。スライド全体を覆い、中の v-drag はスライド座標になる */
+.box-layout-free {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.box-layout-free > * {
+  pointer-events: auto;
+}
