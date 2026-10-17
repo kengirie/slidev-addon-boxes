@@ -11,7 +11,7 @@ import type { Directive } from 'vue'
 import { computed, getCurrentInstance, inject, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, shallowRef, watch, watchEffect } from 'vue'
 import { useSlideContext } from '@slidev/client'
 import { resolveAssetUrl } from '../layoutHelper'
-import { useEditorOpen } from '../composables/useEditorOpen'
+import { useEditorInstalled, useEditorOpen } from '../composables/useEditorOpen'
 
 const props = withDefaults(defineProps<{
   x?: number | string
@@ -89,7 +89,9 @@ const dragPos = computed(() => props.name ? frontmatterForDrag.dragPos[props.nam
 
 // エディタが開いている間は v-drag を付けない（エディタが動かす）
 const editorOpen = useEditorOpen()
-const useVDrag = computed(() => !!props.name && !editorOpen.value)
+const editorInstalled = useEditorInstalled()
+// エディタが入っているときは閉じていても v-drag を付けない（閉じた状態は「見るだけ」）
+const useVDrag = computed(() => !!props.name && !editorOpen.value && !editorInstalled.value)
 
 /** 保存済みの dragPos（無ければ既定の座標）。v-drag を使わないときはこれで描く */
 const placed = computed(() => {
