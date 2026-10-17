@@ -99,24 +99,10 @@ const editorInstalled = useEditorInstalled()
 // エディタが入っているときは閉じていても v-drag を付けない（閉じた状態は「見るだけ」）
 const useVDrag = computed(() => !!props.name && !editorOpen.value && !editorInstalled.value)
 
-/**
- * エディタがその場で書いた位置。エディタはスライドを描き直さずに dragPos を保存するので
- * （Slidev の v-drag と同じ）、この枠の frontmatter はしばらく古いまま残る。
- * 古い値で描き直すと枠が元の位置に戻ってしまうため、エディタから知らされた位置を優先する。
- */
-const local = shallowRef<{ x: number, y: number, w: number, h: number, rotate: number } | null>(null)
-function onPlace(event: Event) {
-  const g = (event as CustomEvent).detail
-  if (g && [g.x, g.y, g.w, g.h].every(Number.isFinite))
-    local.value = { x: g.x, y: g.y, w: g.w, h: g.h, rotate: Number(g.rotate) || 0 }
-}
-// frontmatter が本当に変わったら（描き直し・手で編集）、そちらに従う
-watch(() => props.name && parentFrontmatter.dragPos?.[props.name], () => local.value = null)
-
 /** 保存済みの dragPos（無ければ既定の座標）。v-drag を使わないときはこれで描く */
+// エディタは位置を描き直しなしで保存したあと、このスライドの frontmatter（リアクティブ）も書き換えるので、
+// ここはいつも最新の dragPos から描ける
 const placed = computed(() => {
-  if (local.value)
-    return local.value
   const saved = props.name ? parentFrontmatter.dragPos?.[props.name] : undefined
   const n = typeof saved === 'string' ? saved.split(',').map(Number) : []
   if (n.length >= 4 && n.slice(0, 4).every(Number.isFinite))
@@ -246,9 +232,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="kbox-origin" :style="originReset">
-    <!-- key：既定の座標や dragPos が Markdown 側で変わったら v-drag を作り直す（v-drag は作成時にしか読まない） -->
+    <!-- key：v-drag を使うときだけ、dragPos が変わったら作り直す（v-drag は作成時にしか読まない）。
+         エディタのときは作り直さず、frontmatter から描き直すだけ（ちらつかない） -->
     <div
-      :key="`${dragPos}|${useVDrag}`"
+      :key="useVDrag ? `${dragPos}|vdrag` : 'editor'"
       ref="root"
       v-maybe-drag="useVDrag ? name : undefined"
       class="kbox"
@@ -259,7 +246,6 @@ onBeforeUnmount(() => {
       :data-studio-box-default="editorOpen && name ? baseDragPos : undefined"
       :data-studio-box-prompt="editorOpen && prompt ? prompt : undefined"
       :data-studio-box-main="editorOpen && main ? '1' : undefined"
-      @kbox-place="onPlace"
       @dblclick.stop
     >
       <img v-if="src" :src="resolveAssetUrl(src)" :style="{ objectFit: fit }">
